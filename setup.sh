@@ -1,150 +1,51 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# WARNING: THIS SCRIPT IS WORK IN PROGRESS
-# PLEASE DO NOT RUN THIS SCRIPT AS IT IS UNTESTED
+# Function to check if a directory exists and back it up
+backup_directory() {
+	local dir=$1
+	if [ -d "$dir" ]; then
+		read -p "Do you want to backup and replace the existing $dir? (y/n) " -n 1 -r
+		echo
+		if [[ $REPLY =~ ^[Yy]$ ]]; then
+			echo "Backing up $dir to ${dir}.bak..."
+			mv "$dir" "${dir}.bak"
+		else
+			echo "Skipping backup for $dir."
+		fi
+	fi
+}
 
-PYTHON_VERSION="3.10"
-NODEJS_VERSION="16"
-
-set -e
-
-RED='\034[0;31m'
-LBL='\033[1;34m'
-LGR='\033[1;32m'
-NC='\033[0m'
-
-
-printf "${LBL}Checking if brew is installed...${NC}\n"
-if ! command -v brew &> /dev/null
-then
-  printf "${LGR}Homebrew not found, installing...${NC}\n"
-  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-fi
-printf "${LBL}Brew is installed. Continuing...${NC}\n"
-
-tools=(
-  "cookiecutter"
-  "colima"
-  "dive"
-  "docker"
-  "git-lfs"
-  "helm"
-  "htop"
-  "httpie"
-  "iperf3"
-  "jq"
-  "k9s"
-  "kubernetes-cli"
-  "lima"
-  "mtr"
-  "ncdu"
-  "neovim"
-  "nmap"
-  "node@${NODEJS_VERSION}"
-  "pwgen"
-  "python@${PYTHON_VERSION}"
-  "sqlite"
-  "the_silver_searcher"
-  "tldr"
-  "tmux"
-  "wget"
-  "youtube-dl"
-)
-
-printf "${LBL}--- Installing brew tools ---${NC}\n"
-printf "${LGR}brew install ${tools[@]}${NC}\n"
-brew install ${tools[@]}
-
-apps=(
-  "alfred"
-  "anydesk"
-  "dropbox"
-  "enpass"
-  "font-hack-nerd-font"
-  "google-chrome"
-  "hammerspoon"
-  "hma-pro-vpn"
-  "intellij-idea"
-  "intune-company-portal"
-  "iterm2"
-  "joplin"
-  "keepassx"
-  "microsoft-office"
-  "obs"
-  "onedrive"
-  "plex"
-  "postman"
-  "rancher"
-  "signal"
-  "skype"
-  "slack"
-  "spotify"
-  "steam"
-  "teamviewer"
-  "telegram"
-  "tunnelblick"
-  "vlc"
-  "webex"
-  "wireshark"
-)
-
-printf "${LBL}Add casks for brew${NC}\n" 
-brew tap homebrew/cask
-brew tap homebrew/cask-fonts
-
-printf "${LBL}--- Installing MacOS apps ---${NC}\n"
-printf "${LGR}brew install --cask ${tools[@]}${NC}\n"
-brew install --cask "${apps[@]}"
-
-# No brew formulae
-# postgres app, magnet app, amphetamine app, notability
-
-printf "${LBL}Setup zshrc plugins${NC}\n"
-ln -sf --backup ~/.dotfiles/zsh/.zshrc ~/.zshrc
-ln -sf --backup ~/.dotfiles/zsh/.p10k.zsh ~/.p10k.zsh
-
-printf "${LBL}Setup vim / neovim configs${NC}\n"
-ln -sf --backup ~/.dotfiles/nvim/init.vim ~/.config/nvim/init.vim 
-ln -sf --backup ~/.dotfiles/nvim/coc-settings.json ~/.config/nvim/coc-settings.json 
-ln -sf --backup ~/.dotfiles/nvim/init.vim ~/.vimrc
-
-if [ ! -f ~/.vim/autoload/plug.vim ]; then
-  printf "${LBL}Installing vim-plug...${NC}\n"
-  curl -fLo ~/.vim/autoload/plug.vim --create-dirs \
-    https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+# Check if Homebrew is installed
+if ! command -v brew &>/dev/null; then
+	echo "Homebrew not found. Installing Homebrew..."
+	/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi
 
-printf "${LBL}Setup pynvim for neovim extensions that require python${NC}\n"
-pip install pynvim
-pip3 install pynvim
+# Backup and install dotfiles
+dotfiles_dir="$(dirname "$0")"
+config_dir="$HOME/.config"
 
-pip install autopep8 pep8 flake8
-pip3 install autopep8 pep8 flake8
+# Backup and install nvim config
+backup_directory "$config_dir/nvim"
+mkdir -p "$config_dir/nvim"
+cp -r "$dotfiles_dir/.config/nvim" "$config_dir"
 
-printf "${LBL}Setup tmux configs${NC}\n"
-ln -sf --backup ~/.dotfiles/tmux/.tmux.conf ~/.tmux.conf
+# Backup and install alacritty config
+backup_directory "$config_dir/alacritty"
+mkdir -p "$config_dir/alacritty"
+cp -r "$dotfiles_dir/.config/alacritty" "$config_dir"
 
-if [ ! -d ~/.tmux/plugins/tpm ]; then
-  printf "${LBL}Installing tmux plugin manager...${NC}\n"
-  git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+# Install TPM (Tmux Plugin Manager)
+tmux_plugin_dir="$HOME/.tmux/plugins/tpm"
+if [ ! -d "$tmux_plugin_dir" ]; then
+	echo "Installing TPM (Tmux Plugin Manager)..."
+	git clone https://github.com/tmux-plugins/tpm "$tmux_plugin_dir"
+else
+	echo "TPM is already installed."
 fi
 
-printf "${LBL}Setup Silver Searcher's .ignore file${NC}\n"
-ln -sf --backup ~/.dotfiles/.ignore ~/.ignore
+# Install applications and tools from Brewfile
+echo "Installing packages from Brewfile..."
+brew bundle --file="$dotfiles_dir/Brewfile"
 
-printf "${LBL}Setup hammerspoon config${NC}\n"
-ln -sf --backup ~/.dotfiles/hammerspoon/init.lua ~/.hammerspoon/init.lua
-
-if [ ! -d ~/.hammerspoon/Spoons/PublicIP.spoon ]; then
-  printf "${LBL}Add PublicIP plugin for hammerspoon${NC}"
-  git clone https://github.com/asibin/hammerspoon-spoon-PublicIP.git ~/.hammerspoon/Spoons/PublicIP.spoon
-fi
-
-printf "${LBL}--- Setup DONE ---${NC}\n\n"
-printf "${LGR}
-In order to install all neovim plugins run\n\n
-
-nvim -c ':PlugInstall | :VimspectorInstall'\n
-
-and restart vim after.
-${NC}"
+echo "Installation complete!"
